@@ -1,0 +1,40 @@
+# Credenciales y configuración local
+.env
+.env.*
+.env.example
+config/conexion.local.php
+
+# Dependencias
+/vendor/
+composer.phar
+
+# Logs y archivos temporales
+*.log
+/logs/
+/tmp/
+/cache/
+php_errors.log
+
+# Respaldos de la base de datos
+*.dump
+*.backup
+*.bak
+# El script de estructura SÍ se sube:
+!sql/script.sql
+
+# Editores/IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Pruebas y herramientas
+.phpunit.result.cache
+/coverage/
