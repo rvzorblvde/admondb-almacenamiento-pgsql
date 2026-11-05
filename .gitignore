@@ -1,6 +1,5 @@
 # Credenciales y configuración local
 .env
-.env.*
 # .env.example          Este archivo si se sube al repositorio
 config/conexion.local.php
 
