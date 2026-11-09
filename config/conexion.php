@@ -4,7 +4,7 @@ cargarEnv(__DIR__ . '/../.env');
 
 function conectar(): PDO {
     $dsn = sprintf(
-        "pgsql:host=%s;port=%s,dbname=%s",
+        "pgsql:host=%s;port=%s;dbname=%s",
         $_ENV['DB_HOST'], $_ENV['DB_PORT'], $_ENV['DB_NAME']
     );
 
@@ -14,6 +14,6 @@ function conectar(): PDO {
 
         return $pdo;
     } catch (PDOException $e) {
-        die("Error de conexión a la base de datos.");
+        die("Error de conexión a la base de datos." . $e->getMessage());
     }
 }
