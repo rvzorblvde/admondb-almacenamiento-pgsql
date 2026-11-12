@@ -1,0 +1,59 @@
+/* Configuraciones para la vista de Cliente */
+
+/* Asegura que el atributo `hidden` oculte también botones con estilos propios */
+[hidden] {
+    display: none !important;
+}
+
+.panel-doble {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr); /* izquierda: formulario / derecha: tabla */
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.panel-formulario,
+.panel-lista {
+    min-width: 0; /* Permite hacer scroll */
+}
+
+.panel-formulario input,
+.panel-formulario select {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.panel-lista .tabla-contenedor {
+    overflow-x: auto;
+}
+
+.panel-lista .ayuda {
+    margin: 0 0 .75rem;
+    font-size: .85rem;
+    color: #6b7280;
+}
+
+/* Filas clicables */
+.tabla-seleccionable tbody tr {
+    cursor: pointer;
+}
+
+.tabla-seleccionable tbody tr:hover {
+    background: #f1f5f9;
+}
+
+.tabla-seleccionable tbody tr:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: -2px;
+}
+
+.tabla-seleccionable tbody tr.fila-seleccionada {
+    background: #dbeafe;
+}
+
+/* Solo en pantallas muy angostas (celular) se apilan */
+@media (max-width: 600px) {
+    .panel-doble {
+        grid-template-columns: 1fr;
+    }
+}
