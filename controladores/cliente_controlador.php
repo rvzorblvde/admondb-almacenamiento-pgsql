@@ -7,27 +7,39 @@ require_once __DIR__ . '/../modelos/Cliente.php';
 
 iniciarSesion();
 
-/** Toma los datos crudos del formulario y los normaliza. */
+/* Normalización de los datos */
 function datosDelFormulario(array $post): array
 {
     $id = filter_var($post['id_cliente'] ?? '', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+
+    $estado = trim((string) ($post['estado'] ?? ''));
+    if ($id === false) {
+        // El estado de un cliente nuevo siempre es 'Activo'
+        $estado = 'Activo';
+    } elseif ($estado === '') {
+        $estado = Cliente::buscarPorId($id)['estado'] ?? 'Activo';
+    }
 
     return [
         'id_cliente'         => $id === false ? null : $id,
         'nombre_cliente'     => trim((string) ($post['nombre_cliente'] ?? '')),
         'telefono_cliente'   => trim((string) ($post['telefono_cliente'] ?? '')),
         'correo_electronico' => mb_strtolower(trim((string) ($post['correo_electronico'] ?? ''))),
-        'estado'             => trim((string) ($post['estado'] ?? '')),
+        'estado'             => $estado,
     ];
 }
 
-function validarCliente(array $d, array $domicilios = []): array
+function validarCliente(array $d): array
 {
     $errores = [];
 
     // Validar el nombre y el estado
-    if (trim($d['nombre_cliente']) === '') {
+    if ($d['nombre_cliente'] === '') {
         $errores['nombre_cliente'] = 'El nombre es obligatorio.';
+    }
+
+    if (!in_array($d['estado'], Cliente::ESTADOS, true)) {
+        $errores['estado'] = 'Estado no válido.';
     }
 
     // Validar restricciones de la BD (CHECK)
@@ -42,26 +54,17 @@ function validarCliente(array $d, array $domicilios = []): array
         $errores['correo_electronico'] = 'Ya existe un cliente con este correo.';
     }
 
-    // 4. Validar domicilios ANTES de abrir la transacción
-    foreach ($domicilios as $index => $dom) {
-        if (trim($dom) === '') {
-            $errores["domicilio_$index"] = 'El domicilio no puede estar vacío.';
-        }
-    }
-
     return $errores;
 }
 
-/** Procesa el guardado (alta o modificación). Devuelve los errores si los hay. */
+/* Guardar el cliente y devolver errores en caso de que los haya */
 function guardarCliente(array $datos): array
 {
-    // Atrapar el error con PHP y asi evitamos inserciones no válidas
-
+    // Atrapar el error con PHP y así tenemos un ID secuencial
+    $errores = validarCliente($datos);
     if (!empty($errores)) {
         return $errores;
-    };
-
-    $errores = validarCliente($datos, $domicilios);
+    }
 
     try {
         if ($datos['id_cliente'] === null) {
@@ -87,7 +90,7 @@ function guardarCliente(array $datos): array
             }
         }
     } catch (PDOException $e) {
-        // 23505 = violación de restricción única (carrera con otro usuario)
+        // 23505 = violación de restricción única
         if ($e->getCode() === '23505') {
             return ['correo_electronico' => 'Ya existe un cliente con ese correo.'];
         }
@@ -117,7 +120,7 @@ function eliminarCliente(?int $id): never
             mensajeFlash('exito', 'Cliente eliminado correctamente.');
         }
     } catch (PDOException $e) {
-        // 23503 = violación de llave foránea (hay registros que dependen del cliente)
+        // 23503 = violación de llave foránea
         if ($e->getCode() === '23503') {
             mensajeFlash('error', 'No se puede eliminar: el cliente tiene registros asociados. Puedes marcarlo como Inactivo.');
         } else {
@@ -129,15 +132,13 @@ function eliminarCliente(?int $id): never
     redirigir('cliente.php');
 }
 
-// ---------------------------------------------------------------------
-// Enrutamiento simple por acción
-// ---------------------------------------------------------------------
 $errores = [];
 $datos = [
     'id_cliente' => null, 'nombre_cliente' => '', 'telefono_cliente' => '',
     'correo_electronico' => '', 'estado' => 'Activo', 'fecha_registro' => null,
 ];
 $estados = Cliente::ESTADOS;
+$flash = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrfValido((string) ($_POST['csrf'] ?? ''))) {
@@ -154,43 +155,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($accion === 'guardar') {
         $datos = array_merge($datos, datosDelFormulario($_POST));
-        $errores = guardarCliente($datos);   // si todo sale bien, redirige y no continúa
-
-        // Con errores se vuelve a mostrar el formulario con lo que escribió la persona
-        $esEdicion = $datos['id_cliente'] !== null;
-        $titulo = $esEdicion ? 'Editar cliente' : 'Nuevo cliente';
-        $flash = null;
-        $csrf = tokenCsrf();
-        require __DIR__ . '/../vistas/cliente_form.php';
-        exit;
-    }
-
-    redirigir('cliente.php');
-}
-
-$accion = $_GET['accion'] ?? 'lista';
-$flash = obtenerFlash();
-$csrf = tokenCsrf();
-
-if ($accion === 'nuevo') {
-    $esEdicion = false;
-    $titulo = 'Nuevo cliente';
-    require __DIR__ . '/../vistas/cliente_form.php';
-} elseif ($accion === 'editar') {
-    $id = filter_var($_GET['id'] ?? '', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-    $cliente = $id === false ? null : Cliente::buscarPorId($id);
-
-    if ($cliente === null) {
-        mensajeFlash('error', 'El cliente solicitado no existe.');
+        $errores = guardarCliente($datos);
+    } else {
         redirigir('cliente.php');
     }
-
-    $datos = $cliente;
-    $esEdicion = true;
-    $titulo = 'Editar cliente';
-    require __DIR__ . '/../vistas/cliente_form.php';
 } else {
-    $clientes = Cliente::listar();
-    $titulo = 'Clientes';
-    require __DIR__ . '/../vistas/cliente_lista.php';
+    $flash = obtenerFlash();
 }
+
+$esEdicion = $datos['id_cliente'] !== null;
+$csrf = tokenCsrf();
+$clientes = Cliente::listar();
+$titulo = 'Clientes';
+
+require __DIR__ . '/../vistas/cliente_vista.php';
