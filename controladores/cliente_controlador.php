@@ -21,35 +21,32 @@ function datosDelFormulario(array $post): array
     ];
 }
 
-/** Devuelve un arreglo campo => mensaje. Vacío si todo es válido. */
-function validarCliente(array $d): array
+function validarCliente(array $d, array $domicilios = []): array
 {
     $errores = [];
 
-    $nombre = $d['nombre_cliente'];
-    if ($nombre === '') {
+    // Validar el nombre y el estado
+    if (trim($d['nombre_cliente']) === '') {
         $errores['nombre_cliente'] = 'El nombre es obligatorio.';
-    } elseif (mb_strlen($nombre) < 2 || mb_strlen($nombre) > 255) {
-        $errores['nombre_cliente'] = 'El nombre debe tener entre 2 y 255 caracteres.';
-    } elseif (!preg_match('/^\p{L}[\p{L} .\'\-]*$/u', $nombre)) {
-        $errores['nombre_cliente'] = 'El nombre solo admite letras, espacios, puntos, apóstrofes y guiones.';
     }
 
+    // Validar restricciones de la BD (CHECK)
     if (!preg_match('/^[0-9]{10}$/', $d['telefono_cliente'])) {
         $errores['telefono_cliente'] = 'El teléfono debe tener exactamente 10 dígitos.';
     }
 
-    $correo = $d['correo_electronico'];
-    if ($correo === '') {
-        $errores['correo_electronico'] = 'El correo electrónico es obligatorio.';
-    } elseif (mb_strlen($correo) > 255 || !filter_var($correo, FILTER_VALIDATE_EMAIL)) {
-        $errores['correo_electronico'] = 'Ingresa un correo electrónico válido.';
-    } elseif (Cliente::existeCorreo($correo, $d['id_cliente'])) {
-        $errores['correo_electronico'] = 'Ya existe un cliente con ese correo.';
+    // Validar restricciones únicas de la BD (UNIQUE)
+    if (!filter_var($d['correo_electronico'], FILTER_VALIDATE_EMAIL)) {
+        $errores['correo_electronico'] = 'Correo no válido.';
+    } elseif (Cliente::existeCorreo($d['correo_electronico'], $d['id_cliente'])) {
+        $errores['correo_electronico'] = 'Ya existe un cliente con este correo.';
     }
 
-    if (!in_array($d['estado'], Cliente::ESTADOS, true)) {
-        $errores['estado'] = 'Selecciona un estado válido.';
+    // 4. Validar domicilios ANTES de abrir la transacción
+    foreach ($domicilios as $index => $dom) {
+        if (trim($dom) === '') {
+            $errores["domicilio_$index"] = 'El domicilio no puede estar vacío.';
+        }
     }
 
     return $errores;
@@ -58,10 +55,13 @@ function validarCliente(array $d): array
 /** Procesa el guardado (alta o modificación). Devuelve los errores si los hay. */
 function guardarCliente(array $datos): array
 {
-    $errores = validarCliente($datos);
-    if ($errores) {
+    // Atrapar el error con PHP y asi evitamos inserciones no válidas
+
+    if (!empty($errores)) {
         return $errores;
-    }
+    };
+
+    $errores = validarCliente($datos, $domicilios);
 
     try {
         if ($datos['id_cliente'] === null) {
