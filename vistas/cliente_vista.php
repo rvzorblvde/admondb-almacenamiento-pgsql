@@ -3,7 +3,7 @@
         <link rel="stylesheet" href="css/cliente-layout.css?v=<?= @filemtime(__DIR__ . '/../public/css/cliente-layout.css') ?: 0 ?>">
 
         <div class="barra-acciones">
-            <a class="boton-secundario" href="../public/index.html">&larr; Volver al inicio</a>
+            <a class="boton-secundario" href="index.html">&larr; Volver al inicio</a>
         </div>
 
         <div class="panel-doble">
@@ -82,6 +82,11 @@
                                 class="boton-peligro" formnovalidate <?= $esEdicion ? '' : 'hidden' ?>>
                             Eliminar
                         </button>
+                        <a id="btn-domicilios" class="boton-morado"
+                           href="<?= $esEdicion ? 'domicilio.php?id_cliente=' . (int) $datos['id_cliente'] : '#' ?>"
+                           <?= $esEdicion ? '' : 'hidden' ?>>
+                            Domicilios
+                        </a>
                     </div>
                 </form>
             </section>
