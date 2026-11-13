@@ -166,6 +166,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $esEdicion = $datos['id_cliente'] !== null;
 $csrf = tokenCsrf();
 $clientes = Cliente::listar();
-$titulo = 'Clientes';
+$titulo = 'Cliente';
 
 require __DIR__ . '/../vistas/cliente_vista.php';
