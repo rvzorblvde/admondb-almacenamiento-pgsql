@@ -1,6 +1,5 @@
 <?php require __DIR__ . '/parciales/header.php'; ?>
 
-        <!-- Layout de dos columnas (formulario | tabla); se carga aquí para no depender del header -->
         <link rel="stylesheet" href="css/cliente-layout.css?v=<?= @filemtime(__DIR__ . '/../public/css/cliente-layout.css') ?: 0 ?>">
 
         <div class="barra-acciones">
@@ -45,7 +44,7 @@
 
                     <label for="correo_electronico">Correo electrónico</label>
                     <input type="email" id="correo_electronico" name="correo_electronico"
-                           value="<?= e($datos['correo_electronico']) ?>"
+                           placeholder="ejemplo@correo.com" value="<?= e($datos['correo_electronico']) ?>"
                            required maxlength="255" autocomplete="email">
                     <?php if (!empty($errores['correo_electronico'])): ?>
                         <span class="texto-error"><?= e($errores['correo_electronico']) ?></span>
@@ -90,7 +89,7 @@
             <!-- Derecha -> Tabla de datos -->
             <section class="panel-lista">
                 <h2>Lista de clientes</h2>
-                <p class="ayuda">Haz clic en un renglón para cargarlo en el formulario.</p>
+                <p class="ayuda">Clic en un registro para editar.</p>
 
                 <?php if (empty($clientes)): ?>
                     <p class="vacio">Todavía no hay clientes registrados.</p>
