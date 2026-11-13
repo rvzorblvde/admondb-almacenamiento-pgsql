@@ -13,7 +13,8 @@
     const campoFecha    = document.getElementById('fecha_registro');
     const titulo        = document.getElementById('titulo-formulario');
     const btnGuardar    = document.getElementById('btn-guardar');
-    const btnEliminar   = document.getElementById('btn-eliminar');
+    const btnEliminar = document.getElementById('btn-eliminar');
+    const btnDomicilios = document.getElementById('btn-domicilios');
     const filas         = document.querySelectorAll('#tabla-clientes tbody tr[data-id]');
 
     // Ajustar títulos según si hay un cliente seleccionado
@@ -23,7 +24,14 @@
         titulo.textContent      = hayCliente ? 'Editar cliente' : 'Nuevo cliente';
         btnGuardar.textContent  = hayCliente ? 'Guardar cambios' : 'Registrar';
         btnEliminar.hidden      = !hayCliente;
-        campoEstado.disabled    = !hayCliente;   // El estado solo se modifica al actualizar
+        campoEstado.disabled = !hayCliente;   // El estado solo se modifica al actualizar
+
+      // Botón morado: lleva a los domicilios del cliente seleccionado
+      btnDomicilios.hidden = !hayCliente;
+      btnDomicilios.href   = hayCliente ? 'domicilio.php?id_cliente=' + encodeURIComponent(campoId.value) : '#';
+      const filaActual     = hayCliente ? document.querySelector('#tabla-clientes tbody tr[data-id="' + campoId.value + '"]') : null;
+      const totalDom       = filaActual ? filaActual.dataset.domicilios : null;
+      btnDomicilios.textContent = totalDom !== null && totalDom !== undefined ? 'Domicilios (' + totalDom + ')' : 'Domicilios';
 
         filas.forEach(function (fila) {
             fila.classList.toggle('fila-seleccionada', hayCliente && fila.dataset.id === campoId.value);
