@@ -41,11 +41,11 @@ class Transportista {
     /** Verifica si el teléfono se encuentra registrado. */
     public static function existeTelefono(string $telefono, ?int $excluirId = null): bool {
         if ($excluirId === null) {
-            $stmt = conectar()->prepare('SEELCT 1 FROM InfoPersona.Transportista WHERE telefono_transportista = :telefono LIMIT 1');
+            $stmt = conectar()->prepare('SELECT 1 FROM InfoPersona.Transportista WHERE telefono_transportista = :telefono LIMIT 1');
 
             $stmt->execute([':telefono' => $telefono]);
         } else {
-            $stmt = conectar()->prepare('SELECT 1 FROM InfoPersona.Transportista WHERE telefono_transportisa = :telefono AND id_transportista <> :id LIMIT 1');
+            $stmt = conectar()->prepare('SELECT 1 FROM InfoPersona.Transportista WHERE telefono_transportista = :telefono AND id_transportista <> :id LIMIT 1');
 
             $stmt->execute([':telefono' => $telefono, ':id' => $excluirId]);
         }
@@ -55,7 +55,7 @@ class Transportista {
 
     public static function insertar(string $nombre, string $telefono, string $correo): int {
         $stmt = conectar()->prepare('INSERT INTO InfoPersona.Transportista (nombre_transportista, telefono_transportista, correo_transportista, estado, fecha_contratacion)
-        VALUES (:nombre, :telefono, _correo, \'Disponible\', CURRENT_DATE) RETURNING id_transportista');
+        VALUES (:nombre, :telefono, :correo, \'Disponible\', CURRENT_DATE) RETURNING id_transportista');
 
         $stmt->execute([':nombre' => $nombre, ':telefono' => $telefono, ':correo' => $correo]);
 
@@ -63,10 +63,10 @@ class Transportista {
     }
 
     /** Devuelve la cantidad de filas modificadas. */
-    public static function actualizar(int $id, string $nombre, string $telefono, string $correo): int {
-        $stmt = conectar()->prepare('UPDATE InfoPersona.Transportista SET nombre_transportista = :nombre, telefono_transportisa = :telefono, correo_transportista = :correo WHERE id_transportista = :id');
+    public static function actualizar(int $id, string $nombre, string $telefono, string $correo, string $estado): int {
+        $stmt = conectar()->prepare('UPDATE InfoPersona.Transportista SET nombre_transportista = :nombre, telefono_transportista = :telefono, correo_transportista = :correo, estado = :estado WHERE id_transportista = :id');
 
-        $stmt->execute([':nombre' => $nombre, ':telefono' => $telefono, ':correo' => $correo, ':id' => $id]);
+        $stmt->execute([':nombre' => $nombre, ':telefono' => $telefono, ':correo' => $correo, ':estado' => $estado, ':id' => $id]);
 
         return $stmt->rowCount();
     }
