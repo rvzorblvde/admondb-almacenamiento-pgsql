@@ -1,3 +1,4 @@
+
 -- Creación de la Base de Datos
 CREATE DATABASE "DB_Almacen"
     WITH
@@ -7,9 +8,11 @@ CREATE DATABASE "DB_Almacen"
     CONNECTION LIMIT = -1
     IS_TEMPLATE = False;
 
+
 -- ESQUEMAS
 CREATE SCHEMA InfoPersona;
 CREATE SCHEMA InfoLogistica;
+CREATE SCHEMA InfoInventario;
 
 
 -- ESQUEMA: InfoPersona
@@ -147,3 +150,384 @@ CREATE TABLE InfoLogistica.Ruta (
 ALTER TABLE InfoLogistica.Ruta
 	ADD CONSTRAINT chk_ruta_estado CHECK (estado_ruta IN
 		('Programada', 'En curso', 'Completada', 'Cancelada'));
+
+
+-- ===== TABLA: Entrega =====
+CREATE TABLE InfoLogistica.Entrega (
+	id_entrega BIGSERIAL NOT NULL,
+	id_ruta BIGINT NOT NULL,
+	id_domicilio BIGINT NOT NULL,
+	fecha_programada DATE NOT NULL,
+	hora_programada TIME NOT NULL,
+	fecha_entrega_real DATE NULL,
+	hora_entrega_real TIME NULL,
+	estado_entrega VARCHAR(200) NOT NULL,
+
+	CONSTRAINT pk_entrega PRIMARY KEY (id_entrega),
+	CONSTRAINT fk_entrega_ruta FOREIGN KEY (id_ruta)
+		REFERENCES InfoLogistica.Ruta(id_ruta),
+	CONSTRAINT fk_entrega_domicilio FOREIGN KEY (id_domicilio)
+		REFERENCES InfoPersona.Domicilio_Cliente(id_domicilio)
+);
+
+
+-- ESQUEMA: InfoInventario
+
+-- ===== TABLA: Anaquel =====
+CREATE TABLE InfoInventario.Anaquel (
+	id_ubicacion BIGSERIAL NOT NULL,
+	zona INT NOT NULL,
+	pasillo INT NOT NULL,
+	rack INT NOT NULL,
+	nivel INT NOT NULL,
+	estado VARCHAR(200) NOT NULL,
+
+	CONSTRAINT pk_ubicacion PRIMARY KEY (id_ubicacion)
+);
+
+
+-- ===== TABLA: Producto =====
+CREATE TABLE InfoInventario.Producto (
+	id_producto BIGSERIAL NOT NULL,
+	id_proveedor BIGINT NOT NULL,
+	id_ubicacion BIGINT NOT NULL,
+	nombre_producto VARCHAR(200) NOT NULL,
+	precio DECIMAL(10, 2) NOT NULL,
+	peso DECIMAL(10, 2) NOT NULL,
+	dimensiones VARCHAR(200) NOT NULL, -- anchoXaltoXlargo
+	stock INT NOT NULL,
+
+	CONSTRAINT pk_producto PRIMARY KEY (id_producto),
+	CONSTRAINT fk_producto_proveedor FOREIGN KEY (id_proveedor)
+		REFERENCES InfoPersona.Proveedor(id_proveedor),
+	CONSTRAINT fk_producto_ubicacion FOREIGN KEY (id_ubicacion)
+		REFERENCES InfoInventario.Anaquel(id_ubicacion)
+);
+
+-- Validaciones de datos
+ALTER TABLE InfoInventario.Producto
+	ADD CONSTRAINT chk_producto_stock CHECK (stock >= 0);
+
+
+-- ESQUEMA: InfoLogistica
+
+-- ===== TABLA: Detalle Entrega =====
+CREATE TABLE InfoLogistica.Detalle_Entrega (
+	id_entrega BIGINT NOT NULL,
+	id_producto BIGINT NOT NULL,
+	cantidad_entregada INT NOT NULL,
+	estado_producto VARCHAR(200) NOT NULL,
+
+	CONSTRAINT fk_detalle_entrega FOREIGN KEY (id_entrega)
+		REFERENCES InfoLogistica.Entrega(id_entrega),
+	CONSTRAINT fk_detalle_producto FOREIGN KEY (id_producto)
+		REFERENCES InfoInventario.Producto(id_producto)
+);
+
+
+-- Disparadores
+
+-- ============================================== --
+--         DISPARADOR 1: Descontar Stock          --
+-- Descripción: Al insertar un DETALLE ENTREGA, se descontará
+-- la cantidad entregada del stock correspondiente en
+-- la tabla PRODUCTO
+-- ============================================== --
+
+-- Disparador 1: Descontar Stock
+
+CREATE OR REPLACE FUNCTION InfoLogistica.fn_descontar_stock()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	UPDATE InfoInventario.Producto
+	SET stock = stock - NEW.cantidad_entregada
+	WHERE id_producto = NEW.id_producto;
+
+	RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_descontar_stock
+AFTER INSERT
+ON InfoLogistica.Detalle_Entrega
+FOR EACH ROW
+EXECUTE FUNCTION InfoLogistica.fn_descontar_stock();
+
+
+-- DISPARADOR 1.1: Manejar las Modificaciones
+-- Descripción: Al modificar un DETALLE ENTREGA, se
+-- devolverá la cantidad anterior al stock y se
+-- descontará la nueva cantidad entregada.
+
+CREATE OR REPLACE FUNCTION InfoLogistica.fn_modificar_stock_detalle()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	UPDATE InfoInventario.Producto
+	SET stock = stock + OLD.cantidad_entregada
+	WHERE id_producto = OLD.id_producto;
+
+	UPDATE InfoInventario.Producto
+	SET stock = stock - NEW.cantidad_entregada
+	WHERE id_producto = NEW.id_producto;
+
+	RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_modificar_stock_detalle
+AFTER UPDATE
+ON InfoLogistica.Detalle_Entrega
+FOR EACH ROW
+EXECUTE FUNCTION InfoLogistica.fn_modificar_stock_detalle();
+
+
+-- DISPARADOR 1.2: Manejar las Eliminaciones
+-- Descripción: Al eliminar un DETALLE ENTREGA, se
+-- devolverá la cantidad entregada al stock del
+-- producto correspondiente.
+
+CREATE OR REPLACE FUNCTION InfoLogistica.fn_eliminar_stock_detalle()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	UPDATE InfoInventario.Producto
+	SET stock = stock + OLD.cantidad_entregada
+	WHERE id_producto = OLD.id_producto;
+
+	RETURN OLD;
+END;
+$$;
+
+CREATE TRIGGER trg_eliminar_stock_detalle
+AFTER DELETE
+ON InfoLogistica.Detalle_Entrega
+FOR EACH ROW
+EXECUTE FUNCTION InfoLogistica.fn_eliminar_stock_detalle();
+
+
+-- ============================================== --
+--         DISPARADOR 2: Completar Entrega        --
+-- Descripción: Se actualizará el estado entrega de
+-- la tabla ENTREGA a completado se actualizará fecha
+-- entrega real y hora entrega real con la información
+-- del sistema
+-- ============================================== --
+
+-- Disparador 2: Completar Entrega
+
+CREATE OR REPLACE FUNCTION InfoLogistica.fn_completar_entrega()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF NEW.estado_entrega = 'Completado'
+		AND OLD.estado_entrega IS DISTINCT FROM NEW.estado_entrega
+	THEN
+		NEW.fecha_entrega_real := CURRENT_DATE;
+		NEW.hora_entrega_real := LOCALTIME;
+	END IF;
+
+	RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_completar_entrega
+BEFORE UPDATE OF estado_entrega
+ON InfoLogistica.Entrega
+FOR EACH ROW
+EXECUTE FUNCTION InfoLogistica.fn_completar_entrega();
+
+
+-- ============================================== --
+--         DISPARADOR 3: Estado de Transporte     --
+--
+-- Descripción: Se vinculará un id transporte a un
+-- nuevo registro dentro de la tabla RUTA un evento
+-- modificará el estado en la tabla TRANSPORTE para
+-- reflejar que la unidad se encuentra en tránsito
+-- ============================================== --
+
+-- Disparador 3: Estado de Transporte
+
+CREATE OR REPLACE FUNCTION InfoLogistica.fn_estado_transporte()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+
+		IF NEW.estado_ruta IN ('Programada', 'En curso') THEN
+			UPDATE InfoLogistica.Transporte
+			SET estado = 'En tránsito'
+			WHERE id_transporte = NEW.id_transporte;
+
+		ELSIF NEW.estado_ruta IN ('Completada', 'Cancelada') THEN
+			UPDATE InfoLogistica.Transporte
+			SET estado = 'Disponible'
+			WHERE id_transporte = NEW.id_transporte;
+		END IF;
+
+	END IF;
+
+	IF TG_OP = 'DELETE' THEN
+		UPDATE InfoLogistica.Transporte
+		SET estado = 'Disponible'
+		WHERE id_transporte = OLD.id_transporte;
+
+		RETURN OLD;
+	END IF;
+
+	RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_estado_transporte
+AFTER INSERT OR UPDATE OR DELETE
+ON InfoLogistica.Ruta
+FOR EACH ROW
+EXECUTE FUNCTION InfoLogistica.fn_estado_transporte();
+
+
+-- ============================================== --
+--         DISPARADOR 4: Estado de Transportista  --
+--
+-- Descripción: Se asignará id transportista a una
+-- RUTA, la base de datos cambiará el valor del campo
+-- estado en la tabla TRANSPORTISTA que indicará que
+-- el conductor está en servicio y no disponible
+-- para otras rutas
+-- ============================================== --
+
+-- Disparador 4: Estado de Transportista
+
+CREATE OR REPLACE FUNCTION InfoLogistica.fn_estado_transportista()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+
+		IF NEW.estado_ruta IN ('Programada', 'En curso') THEN
+			UPDATE InfoPersona.Transportista
+			SET estado = 'En servicio'
+			WHERE id_transportista = NEW.id_transportista;
+
+		ELSIF NEW.estado_ruta IN ('Completada', 'Cancelada') THEN
+			UPDATE InfoPersona.Transportista
+			SET estado = 'Disponible'
+			WHERE id_transportista = NEW.id_transportista;
+		END IF;
+
+	END IF;
+
+	IF TG_OP = 'DELETE' THEN
+		UPDATE InfoPersona.Transportista
+		SET estado = 'Disponible'
+		WHERE id_transportista = OLD.id_transportista;
+
+		RETURN OLD;
+	END IF;
+
+	RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_estado_transportista
+AFTER INSERT OR UPDATE OR DELETE
+ON InfoLogistica.Ruta
+FOR EACH ROW
+EXECUTE FUNCTION InfoLogistica.fn_estado_transportista();
+
+
+-- ============================================== --
+--         DISPARADOR 5: Ocupar Anaquel           --
+--
+-- Descripción: Al asignar un id ubicacion de un
+-- registro de la tabla PRODUCTO actualizará la tabla
+-- ANAQUEL que indicará que el atributo estado pasará
+-- a estar ocupado
+-- ============================================== --
+
+-- Disparador 5: Ocupar Anaquel
+
+CREATE OR REPLACE FUNCTION InfoInventario.fn_ocupar_anaquel()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+
+		UPDATE InfoInventario.Anaquel
+		SET estado = 'Ocupado'
+		WHERE id_ubicacion = NEW.id_ubicacion;
+
+	END IF;
+
+	IF TG_OP = 'UPDATE' OR TG_OP = 'DELETE' THEN
+
+		UPDATE InfoInventario.Anaquel a
+		SET estado = 'Disponible'
+		WHERE a.id_ubicacion = OLD.id_ubicacion
+		AND NOT EXISTS (
+			SELECT 1
+			FROM InfoInventario.Producto p
+			WHERE p.id_ubicacion = a.id_ubicacion
+		);
+
+	END IF;
+
+	IF TG_OP = 'DELETE' THEN
+		RETURN OLD;
+	END IF;
+
+	RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_ocupar_anaquel
+AFTER INSERT OR UPDATE OR DELETE
+ON InfoInventario.Producto
+FOR EACH ROW
+EXECUTE FUNCTION InfoInventario.fn_ocupar_anaquel();
+
+
+-- ============================================== --
+--         DISPARADOR 6: Cancelar Entrega         --
+--
+-- Descripción: Al cambiar el estado entrega de la
+-- tabla ENTREGA por cancelado se actualizará el
+-- estado ruta de la tabla RUTA a cancelada
+-- ============================================== --
+
+-- Disparador 6: Cancelar Entrega
+
+CREATE OR REPLACE FUNCTION InfoLogistica.fn_cancelar_entrega()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF NEW.estado_entrega = 'Cancelado'
+		AND OLD.estado_entrega IS DISTINCT FROM NEW.estado_entrega
+	THEN
+		UPDATE InfoLogistica.Ruta
+		SET estado_ruta = 'Cancelada'
+		WHERE id_ruta = NEW.id_ruta;
+	END IF;
+
+	RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_cancelar_entrega
+AFTER UPDATE OF estado_entrega
+ON InfoLogistica.Entrega
+FOR EACH ROW
+EXECUTE FUNCTION InfoLogistica.fn_cancelar_entrega();
+
+-- PRUEBAS / CONSULTAS
+SELECT * FROM InfoPersona.Cliente;
