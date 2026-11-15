@@ -18,7 +18,7 @@ class Transportista {
     public static function buscarPorId(int $id): ?array {
         $stmt = conectar()->prepare('SELECT ' . self::COLUMNAS . ' FROM InfoPersona.Transportista WHERE id_transportista = :id');
 
-        $stmt->execute([':id => $id']);
+        $stmt->execute([':id' => $id]);
 
         return $stmt->fetch() ?: null;
     }

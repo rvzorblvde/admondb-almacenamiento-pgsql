@@ -26,7 +26,7 @@ function datosDelFormulario(array $post): array {
 /** Validación de los datos. */
 function validarTransportista(array $d) : array {
     $errores = [];
-
+    
     // Valida el nombre
     if ($d['nombre_transportista'] === '')
         $errores['nombre_transportista'] = 'El nombre es obligatorio.';
@@ -34,6 +34,8 @@ function validarTransportista(array $d) : array {
         $errores['nombre_transportista'] = 'El nombre debe tener al menos 2 caracteres.';
     elseif (mb_strlen($d['nombre_transportista']) > 200)
         $errores['nombre_transportista'] = 'El nombre no puede ser mayor a 200 caracteres.';
+    elseif (!preg_match("/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ .'\-]+$/u", $d['nombre_transportista']))
+        $errores['nombre_transportista'] = 'El nombre solo puede contener letras, espacios, puntos, apóstrofes y guiones.';
 
     // Validación de los CHECK de la BD
     if (!preg_match('/^[0-9]{10}$/', $d['telefono_transportista']))
