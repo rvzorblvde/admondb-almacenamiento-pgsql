@@ -23,7 +23,52 @@ class Cliente
         return $stmt->fetch() ?: null;
     }
 
-    /** Indica si el correo ya está registrado (ignorando mayúsculas y, opcionalmente, un cliente). */
+    // Concatenación con la tabla de Domicilios
+    public static function listarParaSelect(): array
+    {
+        $sql = "SELECT id_cliente,
+        nombre_cliente || ' [' || estado || ']' AS etiqueta
+        FROM InfoPersona.Cliente
+        ORDER BY nombre_cliente";
+        return conectar()->query($sql)->fetchAll();
+    }
+
+
+    public static function existeDuplicado(string $nombre, string $telefono, string $correo, ?int $excluirId = null): bool
+    {
+        $sql = 'SELECT 1 FROM InfoPersona.Cliente
+        WHERE LOWER(TRIM(nombre_cliente)) = LOWER(TRIM(:nombre))
+        AND telefono_cliente = :telefono
+        AND LOWER(correo_electronico) = LOWER(:correo)';
+        $params = [':nombre' => $nombre, ':telefono' => $telefono, ':correo' => $correo];
+
+        if ($excluirId !== null) {
+            $sql .= ' AND id_cliente <> :id';
+            $params[':id'] = $excluirId;
+        }
+
+        $stmt = conectar()->prepare($sql . ' LIMIT 1');
+        $stmt->execute($params);
+        return (bool) $stmt->fetchColumn();
+    }
+
+    // Indicar si el telefono ya esta registrado
+    public static function existeTelefono(string $telefono, ?int $excluirId = null): bool
+    {
+        $sql = 'SELECT 1 FROM InfoPersona.Cliente WHERE telefono_cliente = :telefono';
+        $params = [':telefono' => $telefono];
+
+        if ($excluirId !== null) {
+            $sql .= ' AND id_cliente <> :id';
+            $params[':id'] = $excluirId;
+        }
+
+        $stmt = conectar()->prepare($sql . ' LIMIT 1');
+        $stmt->execute($params);
+        return (bool) $stmt->fetchColumn();
+    }
+
+    // Indica si un correo ya esta registrado
     public static function existeCorreo(string $correo, ?int $excluirId = null): bool
     {
         if ($excluirId === null) {
@@ -34,7 +79,7 @@ class Cliente
         } else {
             $stmt = conectar()->prepare(
                 'SELECT 1 FROM InfoPersona.Cliente
-                 WHERE LOWER(correo_electronico) = LOWER(:correo) AND id_cliente <> :id LIMIT 1'
+                WHERE LOWER(correo_electronico) = LOWER(:correo) AND id_cliente <> :id LIMIT 1'
             );
             $stmt->execute([':correo' => $correo, ':id' => $excluirId]);
         }
@@ -45,8 +90,8 @@ class Cliente
     {
         $stmt = conectar()->prepare(
             'INSERT INTO InfoPersona.Cliente (nombre_cliente, telefono_cliente, correo_electronico, estado)
-             VALUES (:nombre, :telefono, :correo, :estado)
-             RETURNING id_cliente'
+        VALUES (:nombre, :telefono, :correo, :estado)
+        RETURNING id_cliente'
         );
         $stmt->execute([
             ':nombre'   => $nombre,
@@ -57,16 +102,16 @@ class Cliente
         return (int) $stmt->fetchColumn();
     }
 
-    /** Devuelve la cantidad de filas modificadas (0 si el cliente no existe). */
+    // Devolver la cantidad de filas modificadas
     public static function actualizar(int $id, string $nombre, string $telefono, string $correo, string $estado): int
     {
         $stmt = conectar()->prepare(
             'UPDATE InfoPersona.Cliente
-             SET nombre_cliente = :nombre,
-                 telefono_cliente = :telefono,
-                 correo_electronico = :correo,
-                 estado = :estado
-             WHERE id_cliente = :id'
+            SET nombre_cliente = :nombre,
+            telefono_cliente = :telefono,
+            correo_electronico = :correo,
+            estado = :estado
+            WHERE id_cliente = :id'
         );
         $stmt->execute([
             ':nombre'   => $nombre,
@@ -78,7 +123,7 @@ class Cliente
         return $stmt->rowCount();
     }
 
-    /** Devuelve la cantidad de filas eliminadas (0 si el cliente no existe). */
+    // Devolver la cantidad de filas eliminadas
     public static function eliminar(int $id): int
     {
         $stmt = conectar()->prepare('DELETE FROM InfoPersona.Cliente WHERE id_cliente = :id');
