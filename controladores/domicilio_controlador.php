@@ -14,7 +14,7 @@ function idValido(mixed $valor): ?int
     return $id === false ? null : $id;
 }
 
-function validarDomicilio(string $domicilio): array
+function validarDomicilio(int $idCliente, ?int $idDomicilio, string $domicilio): array
 {
     $errores = [];
 
@@ -25,6 +25,9 @@ function validarDomicilio(string $domicilio): array
     } elseif (mb_strlen($domicilio) > DomicilioCliente::LONGITUD_MAXIMA) {
         // VARCHAR(200) en la BD
         $errores['domicilio'] = 'El domicilio no puede exceder ' . DomicilioCliente::LONGITUD_MAXIMA . ' caracteres.';
+    } elseif (DomicilioCliente::existeDomicilio($idCliente, $domicilio, $idDomicilio)) {
+        // Único por cliente: otro cliente sí puede tener el mismo domicilio
+        $errores['general'] = 'Domicilio ya existente.';
     }
 
     return $errores;
@@ -33,7 +36,7 @@ function validarDomicilio(string $domicilio): array
 /* Guardar el domicilio y devolver errores en caso de que los haya */
 function guardarDomicilio(int $idCliente, ?int $idDomicilio, string $domicilio): array
 {
-    $errores = validarDomicilio($domicilio);
+    $errores = validarDomicilio($idCliente, $idDomicilio, $domicilio);
     if (!empty($errores)) {
         return $errores;
     }
@@ -48,6 +51,10 @@ function guardarDomicilio(int $idCliente, ?int $idDomicilio, string $domicilio):
             mensajeFlash('exito', 'Domicilio actualizado correctamente.');
         }
     } catch (PDOException $e) {
+        // 23505 = violación del índice único (id_cliente, domicilio); respaldo por si dos personas guardan a la vez
+        if ($e->getCode() === '23505') {
+            return ['general' => 'Domicilio ya existente.'];
+        }
         // 23503 = violación de llave foránea (el cliente fue eliminado mientras tanto)
         if ($e->getCode() === '23503') {
             mensajeFlash('error', 'El cliente ya no existe.');
@@ -123,9 +130,9 @@ if ($esPost) {
 
 $esEdicion = $datos['id_domicilio'] !== null;
 $csrf = tokenCsrf();
-$clientes = Cliente::listar();
+$clientes = Cliente::listarParaSelect();     // Dropdown: "Nombre Cliente [Estado]"
 $domicilios = $cliente === null ? [] : DomicilioCliente::listarPorCliente($idCliente);
 $longitudMaxima = DomicilioCliente::LONGITUD_MAXIMA;
-$titulo = 'Domicilios de clientes';
+$titulo = 'Domicilio';
 
 require __DIR__ . '/../vistas/domicilio_vista.php';

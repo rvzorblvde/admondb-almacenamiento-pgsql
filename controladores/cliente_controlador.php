@@ -47,10 +47,27 @@ function validarCliente(array $d): array
         $errores['telefono_cliente'] = 'El teléfono debe tener exactamente 10 dígitos.';
     }
 
-    // Validar restricciones únicas de la BD (UNIQUE)
     if (!filter_var($d['correo_electronico'], FILTER_VALIDATE_EMAIL)) {
         $errores['correo_electronico'] = 'Correo no válido.';
-    } elseif (Cliente::existeCorreo($d['correo_electronico'], $d['id_cliente'])) {
+    }
+
+    // Si el formato ya falló, no tiene caso consultar la BD
+    if (!empty($errores)) {
+        return $errores;
+    }
+
+    // Registro idéntico a uno existente (mismo nombre, teléfono y correo)
+    if (Cliente::existeDuplicado($d['nombre_cliente'], $d['telefono_cliente'], $d['correo_electronico'], $d['id_cliente'])) {
+        $errores['general'] = 'Ya existe este registro.';
+        return $errores;
+    }
+
+    // Validar restricciones únicas de la BD (UNIQUE)
+    if (Cliente::existeTelefono($d['telefono_cliente'], $d['id_cliente'])) {
+        $errores['telefono_cliente'] = 'Ya existe un cliente con este teléfono.';
+    }
+
+    if (Cliente::existeCorreo($d['correo_electronico'], $d['id_cliente'])) {
         $errores['correo_electronico'] = 'Ya existe un cliente con este correo.';
     }
 
@@ -90,13 +107,16 @@ function guardarCliente(array $datos): array
             }
         }
     } catch (PDOException $e) {
-        // 23505 = violación de restricción única
+        // 23505 = violación de restricción única; el mensaje de PostgreSQL trae el nombre del CONSTRAINT
         if ($e->getCode() === '23505') {
-            return ['correo_electronico' => 'Ya existe un cliente con ese correo.'];
+            if (str_contains($e->getMessage(), 'uq_cliente_telefono')) {
+                return ['telefono_cliente' => 'Ya existe un cliente con este teléfono.'];
+            }
+            return ['correo_electronico' => 'Ya existe un cliente con este correo.'];
         }
         // 23514 = violación de CHECK
         if ($e->getCode() === '23514') {
-            return ['general' => 'Algún dato no cumple las reglas de la base de datos.'];
+            return ['general' => 'Algún dato no cumple las restricciones.'];
         }
         error_log('Error al guardar cliente: ' . $e->getMessage());
         return ['general' => 'No se pudo guardar el cliente. Inténtalo de nuevo.'];
