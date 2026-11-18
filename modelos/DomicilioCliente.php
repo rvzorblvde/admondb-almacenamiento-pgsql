@@ -21,22 +21,32 @@ class DomicilioCliente
         return $stmt->fetchAll();
     }
 
-    // Cantidad de domicilios por cliente
-    public static function contarPorCliente(): array
+    // Indica si el cliente ya tiene ese domicilio (sin importar mayúsculas).
+    // Solo compara contra los domicilios del MISMO cliente; al editar se ignora el propio registro.
+    public static function existeDomicilio(int $idCliente, string $domicilio, ?int $excluirId = null): bool
     {
-        $sql = 'SELECT id_cliente, count(*) AS Total
-                FROM InfoPersona.Domicilio_Cliente
-                GROUP BY id_cliente';
+        $sql = 'SELECT 1 FROM InfoPersona.Domicilio_Cliente
+        WHERE id_cliente = :id_cliente
+        AND LOWER(domicilio) = LOWER(:domicilio)';
+        $params = [':id_cliente' => $idCliente, ':domicilio' => $domicilio];
 
-        return conectar()->query($sql)->fetchAll(PDO::FETCH_KEY_PAIR);
+        if ($excluirId !== null) {
+            $sql .= ' AND id_domicilio <> :id_domicilio';
+            $params[':id_domicilio'] = $excluirId;
+        }
+
+        $stmt = conectar()->prepare($sql . ' LIMIT 1');
+        $stmt->execute($params);
+
+        return (bool) $stmt->fetchColumn();
     }
 
-    public static function insertar(int $idCliente, string $domicilio)
+    public static function insertar(int $idCliente, string $domicilio): int
     {
         $stmt = conectar()->prepare(
             'INSERT INTO InfoPersona.Domicilio_Cliente (id_cliente, domicilio)
-            VALUES (:id_cliente, :domicilio)
-            RETURNING id_domicilio'
+        VALUES (:id_cliente, :domicilio)
+        RETURNING id_domicilio'
         );
 
         $stmt->execute([':id_cliente' => $idCliente, ':domicilio' => $domicilio]);
@@ -44,7 +54,7 @@ class DomicilioCliente
     }
 
     // Se evita que se puedan modificar domicilios de otro cliente cambiando el ID del formulario
-    public static function actualizar(int $idDomicilio, int $idCliente, string $domicilio)
+    public static function actualizar(int $idDomicilio, int $idCliente, string $domicilio): int
     {
         $stmt = conectar()->prepare(
             'UPDATE InfoPersona.Domicilio_Cliente
@@ -57,14 +67,14 @@ class DomicilioCliente
     }
 
     // Devuelve las filas eliminadas
-    public static function elminar(int $domicilio, int $idCliente): int
+    public static function eliminar(int $idDomicilio, int $idCliente): int
     {
         $stmt = conectar()->prepare(
             'DELETE FROM InfoPersona.Domicilio_Cliente
             WHERE id_domicilio = :id_domicilio AND id_cliente = :id_cliente'
         );
 
-        $stmt->execute([':id_cliente' => $idCliente, ':id_cliente' => $idCliente]);
+        $stmt->execute([':id_domicilio' => $idDomicilio, ':id_cliente' => $idCliente]);
         return $stmt->rowCount();
     }
 }
