@@ -1,15 +1,13 @@
 <?php require __DIR__ . '/parciales/header.php'; ?>
 
-<link rel="stylesheet" href="css/cliente-layout.css?v=<?= @filemtime(__DIR__ . '/../public/css/cliente-layout.css') ?: 0 ?>">
-
 <div class="barra-acciones">
-    <a class="boton-secundiario" href="index.html">&larr; Volver al incio</a>
+    <a class="boton-secundario" href="index.html">&larr; Volver al inicio</a>
 </div>
 
 <div class="panel-doble">
     <!-- Izquierda -> Formulario -->
     <section class="panel-formulario">
-        <h2 id="titulo-formulario"><?= $esEdicion ? 'Editar transportistas' : 'Nuevo transportista' ?></h2>
+        <h2 id="titulo-formulario"><?= $esEdicion ? 'Editar transportista' : 'Nuevo transportista' ?></h2>
 
         <?php if (!empty($errores['general'])): ?>
             <p class="mensaje-error" role="alert"><?= e($errores['general']) ?></p>
@@ -56,28 +54,21 @@
                 <span class="texto-error"><?= e($errores['correo_transportista']) ?></span>
             <?php endif; ?>
 
-            <!-- Estado del transportista -->
-            <label for="estado">Estado</label>
+            
+            <!-- Estado: solo visible cuando se modifica un transportista -->
+            <div id="grupo-estado" <?= $esEdicion ? '' : 'hidden' ?>>
+                <label for="estado">Estado</label>
+                <select id="estado" name="estado" required <?= $esEdicion ? '' : 'disabled' ?>>
+                    <?php foreach ($estados as $estado): ?>
+                        <option value="<?= e($estado) ?>" <?= $datos['estado'] === $estado ? 'selected' : '' ?>>
+                            <?= e($estado) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
 
-            <!-- Bloqueado al registrar un nuevo transportista -->
-            <select id="estado" name="estado" required <?= $esEdicion ? '' : 'disabled' ?>>
-                <?php foreach ($estados as $estado): ?>
-                    <option value="<?= e($estado) ?>" <?= $datos['estado'] === $estado ? 'selected' : '' ?>>
-                        <?= e($estado) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-
-            <?php if (!empty($errores['estado'])): ?>
-                <span class="texto-error"><?= e($errores['estado']) ?></span>
-            <?php endif; ?>
-
-            <!-- Fecha de contratación -->
-            <div id="grupo-fecha">
-                <label for="fecha_contratacion">Fecha de contratación</label>
-                <input type="text" id="fecha_contratacion"
-                    value="<?= e($datos['fecha_contratacion'] ?? '') ?>"
-                    placeholder="Se asigna al registrar" readonly disabled>
+                <?php if (!empty($errores['estado'])): ?>
+                    <span class="texto-error"><?= e($errores['estado']) ?></span>
+                <?php endif; ?>
             </div>
 
             <!-- Botones del formulario -->
@@ -97,7 +88,7 @@
     <!-- Derecha -> Tabla de Datos -->
     <section class="panel-lista">
         <h2>Lista de transportistas</h2>
-        <p class="ayuda">Click en un registro para editar</p>
+        <p class="ayuda">Clic en un registro para editar</p>
 
         <?php if (empty($transportistas)): ?>
             <p class="vacio">Todavia no hay transportistas registrados</p>
@@ -112,7 +103,6 @@
                             <th>Teléfono</th>
                             <th>Correo Electrónico</th>
                             <th>Estado</th>
-                            <th>Fecha de contratación</th>
                         </tr>
                     </thead>
 
@@ -125,14 +115,12 @@
                                 data-nombre="<?= e($t['nombre_transportista']) ?>"
                                 data-telefono="<?= e($t['telefono_transportista']) ?>"
                                 data-correo="<?= e($t['correo_transportista']) ?>"
-                                data-estado="<?= e($t['estado']) ?>"
-                                data-fecha="<?= e($t['fecha_contratacion']) ?>">
+                                data-estado="<?= e($t['estado']) ?>">
 
                                 <td><?= e($t['id_transportista']) ?></td>
                                 <td><?= e($t['nombre_transportista']) ?></td>
                                 <td><?= e($t['telefono_transportista']) ?></td>
                                 <td><?= e($t['correo_transportista']) ?></td>
-                                <td><?= e($t['fecha_contratacion']) ?></td>
 
                                 <td>
                                     <span class="etiqueta etiqueta-<?= $t['estado'] === 'Disponible' ? 'activo' : 'inactivo' ?>">
@@ -149,6 +137,6 @@
     </section>
 </div>
 
-<script src="js/transportista.js?v=<?= @filemtime(__DIR__ . '/../public/js/transporitista.js') ?:0 ?>" defer></script>
+<script src="js/transportista.js?v=<?= @filemtime(__DIR__ . '/../public/js/transportista.js') ?:0 ?>" defer></script>
 
 <?php require __DIR__ . '/parciales/footer.php'; ?>

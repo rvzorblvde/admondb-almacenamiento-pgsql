@@ -133,7 +133,7 @@ function eliminarTransportista(?int $id): never {
 /** Datos iniciales del formulario. */
 $errores = [];
 
-$datos = ['id_transportista' => null, 'nombre_transportista' => '', 'telefono_transportista' => '', 'correo_transportista' => '', 'estado' => 'Disponible', 'fecha_contratacion' => null,];
+$datos = ['id_transportista' => null, 'nombre_transportista' => '', 'telefono_transportista' => '', 'correo_transportista' => '', 'estado' => 'Disponible',];
 
 $estados = Transportista::ESTADOS;
 $flash = null;
@@ -162,16 +162,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (($_POST['id_transportista'] ?? '') !== '' && $datos['id_transportista'] === null)
             $errores['general'] = 'Identificador de transportista no válido.';
-        else {
-            if ($datos['id_transportista'] !== null) {
-                $transportista = Transportista::buscarPorId($datos['id_transportista']);
-
-                if ($transportista !== null)
-                    $datos['fecha_contratacion'] = $transportista['fecha_contratacion'];
-            }
-
+        else
             $errores = guardarTransportista($datos);
-        }
 
     } else
         redirigir('transportista.php');
