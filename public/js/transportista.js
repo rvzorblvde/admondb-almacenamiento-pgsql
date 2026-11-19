@@ -1,4 +1,3 @@
-
 (function () {
     'use strict';
 
@@ -12,22 +11,23 @@
     const campoCorreo   = form.elements['correo_transportista'];
     const campoEstado   = form.elements['estado'];
 
-    const campoFecha    = document.getElementById('fecha_contratacion');
-    const titulo        = document.getElementById('titulo-formulario');
-    const btnGuardar    = document.getElementById('btn-guardar');
-    const btnEliminar   = document.getElementById('btn-eliminar');
-    const filas         = document.querySelectorAll('#tabla-transportistas tbody tr[data-id]');
+    const titulo       = document.getElementById('titulo-formulario');
+    const btnGuardar   = document.getElementById('btn-guardar');
+    const btnEliminar  = document.getElementById('btn-eliminar');
+    const filas        = document.querySelectorAll('#tabla-transportistas tbody tr[data-id]');
+    const grupoEstado  = document.getElementById('grupo-estado');
 
 
     // Ajustar títulos según si hay un transportista seleccionado
     function actualizarModo() {
         const hayTransportista = campoId.value !== '';
 
-        titulo.textContent     = hayTransportista ? 'Editar transportista' : 'Nuevo transportista';
+        titulo.textContent = hayTransportista ? 'Editar transportista' : 'Nuevo transportista';
         btnGuardar.textContent = hayTransportista ? 'Guardar cambios' : 'Registrar';
-        btnEliminar.hidden     = !hayTransportista;
+        btnEliminar.hidden = !hayTransportista;
 
-        // El estado solo se modifica al actualizar
+        // El estado solo aparece cuando se modifica un transportista.
+        grupoEstado.hidden = !hayTransportista;
         campoEstado.disabled = !hayTransportista;
 
         filas.forEach(function (fila) {
@@ -43,7 +43,6 @@
         campoTelefono.value = fila.dataset.telefono;
         campoCorreo.value   = fila.dataset.correo;
         campoEstado.value   = fila.dataset.estado;
-        campoFecha.value    = fila.dataset.fecha || '';
 
         limpiarErrores();
         actualizarModo();
@@ -70,7 +69,6 @@
         campoTelefono.value = '';
         campoCorreo.value   = '';
         campoEstado.value   = 'Disponible';
-        campoFecha.value    = '';
 
         limpiarErrores();
         actualizarModo();
