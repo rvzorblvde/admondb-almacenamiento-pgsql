@@ -75,19 +75,22 @@
             <?php endif; ?>
 
 
-            <!-- Estado -->
-            <label for="estado">Estado</label>
-            <select id="estado" name="estado" required <?= $esEdicion ? '' : 'disabled' ?>>
-                <?php foreach ($estados as $estado): ?>
-                    <option value="<?= e($estado) ?>" <?= $datos['estado'] === $estado ? 'selected' : '' ?>>
-                        <?= e($estado) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
+            
+            <!-- Estado: solo visible cuando se modifica un transporte -->
+            <div id="grupo-estado" <?= $esEdicion ? '' : 'hidden' ?>>
+                <label for="estado">Estado</label>
+                <select id="estado" name="estado" required <?= $esEdicion ? '' : 'disabled' ?>>
+                    <?php foreach ($estados as $estado): ?>
+                        <option value="<?= e($estado) ?>" <?= $datos['estado'] === $estado ? 'selected' : '' ?>>
+                            <?= e($estado) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
 
-            <?php if (!empty($errores['estado'])): ?>
-                <span class="texto-error"><?= e($errores['estado']) ?></span>
-            <?php endif; ?>
+                <?php if (!empty($errores['estado'])): ?>
+                    <span class="texto-error"><?= e($errores['estado']) ?></span>
+                <?php endif; ?>
+            </div>
 
 
             <!-- Botones -->
