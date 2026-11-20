@@ -355,36 +355,63 @@ EXECUTE FUNCTION InfoLogistica.fn_completar_entrega();
 -- Disparador 3: Estado de Transporte
 
 CREATE OR REPLACE FUNCTION InfoLogistica.fn_estado_transporte()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
+RETURNS TRIGGER AS $$
 BEGIN
-	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+    -- Al eliminar una ruta, recalcular el transporte anterior.
+    IF TG_OP = 'DELETE' THEN
+        UPDATE InfoLogistica.Transporte t
+        SET estado = CASE
+            WHEN t.estado = 'Mantenimiento' THEN 'Mantenimiento'
+            WHEN EXISTS (
+                SELECT 1
+                FROM InfoLogistica.Ruta r
+                WHERE r.id_transporte = OLD.id_transporte
+                  AND r.estado_ruta IN ('Programada', 'En curso')
+            ) THEN 'En tránsito'
+            ELSE 'Disponible'
+        END
+        WHERE t.id_transporte = OLD.id_transporte;
 
-		IF NEW.estado_ruta IN ('Programada', 'En curso') THEN
-			UPDATE InfoLogistica.Transporte
-			SET estado = 'En tránsito'
-			WHERE id_transporte = NEW.id_transporte;
+        RETURN OLD;
+    END IF;
 
-		ELSIF NEW.estado_ruta IN ('Completada', 'Cancelada') THEN
-			UPDATE InfoLogistica.Transporte
-			SET estado = 'Disponible'
-			WHERE id_transporte = NEW.id_transporte;
-		END IF;
+    -- Al reasignar una ruta, liberar el transporte anterior
+    -- únicamente si ya no tiene otras rutas activas.
+    IF TG_OP = 'UPDATE' THEN
+        IF OLD.id_transporte IS DISTINCT FROM NEW.id_transporte THEN
+            UPDATE InfoLogistica.Transporte t
+            SET estado = CASE
+                WHEN t.estado = 'Mantenimiento' THEN 'Mantenimiento'
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM InfoLogistica.Ruta r
+                    WHERE r.id_transporte = OLD.id_transporte
+                      AND r.estado_ruta IN ('Programada', 'En curso')
+                ) THEN 'En tránsito'
+                ELSE 'Disponible'
+            END
+            WHERE t.id_transporte = OLD.id_transporte;
+        END IF;
+    END IF;
 
-	END IF;
+    -- Al insertar o actualizar, recalcular el transporte nuevo.
+    UPDATE InfoLogistica.Transporte t
+    SET estado = CASE
+        WHEN t.estado = 'Mantenimiento' THEN 'Mantenimiento'
+        WHEN EXISTS (
+            SELECT 1
+            FROM InfoLogistica.Ruta r
+            WHERE r.id_transporte = NEW.id_transporte
+              AND r.estado_ruta IN ('Programada', 'En curso')
+        ) THEN 'En tránsito'
+        ELSE 'Disponible'
+    END
+    WHERE t.id_transporte = NEW.id_transporte;
 
-	IF TG_OP = 'DELETE' THEN
-		UPDATE InfoLogistica.Transporte
-		SET estado = 'Disponible'
-		WHERE id_transporte = OLD.id_transporte;
-
-		RETURN OLD;
-	END IF;
-
-	RETURN NEW;
+    RETURN NEW;
 END;
-$$;
+$$ LANGUAGE plpgsql;
+
 
 CREATE TRIGGER trg_estado_transporte
 AFTER INSERT OR UPDATE OR DELETE
@@ -406,36 +433,59 @@ EXECUTE FUNCTION InfoLogistica.fn_estado_transporte();
 -- Disparador 4: Estado de Transportista
 
 CREATE OR REPLACE FUNCTION InfoLogistica.fn_estado_transportista()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
+RETURNS TRIGGER AS $$
 BEGIN
-	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+    -- Al eliminar una ruta, recalcular el transportista anterior.
+    IF TG_OP = 'DELETE' THEN
+        UPDATE InfoPersona.Transportista tr
+        SET estado = CASE
+            WHEN EXISTS (
+                SELECT 1
+                FROM InfoLogistica.Ruta r
+                WHERE r.id_transportista = OLD.id_transportista
+                  AND r.estado_ruta IN ('Programada', 'En curso')
+            ) THEN 'En servicio'
+            ELSE 'Disponible'
+        END
+        WHERE tr.id_transportista = OLD.id_transportista;
 
-		IF NEW.estado_ruta IN ('Programada', 'En curso') THEN
-			UPDATE InfoPersona.Transportista
-			SET estado = 'En servicio'
-			WHERE id_transportista = NEW.id_transportista;
+        RETURN OLD;
+    END IF;
 
-		ELSIF NEW.estado_ruta IN ('Completada', 'Cancelada') THEN
-			UPDATE InfoPersona.Transportista
-			SET estado = 'Disponible'
-			WHERE id_transportista = NEW.id_transportista;
-		END IF;
+    -- Al reasignar una ruta, recalcular el transportista anterior.
+    IF TG_OP = 'UPDATE' THEN
+        IF OLD.id_transportista IS DISTINCT FROM NEW.id_transportista THEN
+            UPDATE InfoPersona.Transportista tr
+            SET estado = CASE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM InfoLogistica.Ruta r
+                    WHERE r.id_transportista = OLD.id_transportista
+                      AND r.estado_ruta IN ('Programada', 'En curso')
+                ) THEN 'En servicio'
+                ELSE 'Disponible'
+            END
+            WHERE tr.id_transportista = OLD.id_transportista;
+        END IF;
+    END IF;
 
-	END IF;
+    -- Al insertar o actualizar, recalcular el transportista nuevo.
+    UPDATE InfoPersona.Transportista tr
+    SET estado = CASE
+        WHEN EXISTS (
+            SELECT 1
+            FROM InfoLogistica.Ruta r
+            WHERE r.id_transportista = NEW.id_transportista
+              AND r.estado_ruta IN ('Programada', 'En curso')
+        ) THEN 'En servicio'
+        ELSE 'Disponible'
+    END
+    WHERE tr.id_transportista = NEW.id_transportista;
 
-	IF TG_OP = 'DELETE' THEN
-		UPDATE InfoPersona.Transportista
-		SET estado = 'Disponible'
-		WHERE id_transportista = OLD.id_transportista;
-
-		RETURN OLD;
-	END IF;
-
-	RETURN NEW;
+    RETURN NEW;
 END;
-$$;
+$$ LANGUAGE plpgsql;
+
 
 CREATE TRIGGER trg_estado_transportista
 AFTER INSERT OR UPDATE OR DELETE
@@ -531,3 +581,230 @@ EXECUTE FUNCTION InfoLogistica.fn_cancelar_entrega();
 
 -- PRUEBAS / CONSULTAS
 SELECT * FROM InfoPersona.Cliente;
+
+SELECT * FROM InfoLogistica.Ruta;
+
+SELECT * FROM InfoPersona.Transportista;
+
+SELECT * FROM InfoLogistica.Transporte;
+
+SELECT R.id_ruta, R.nombre_ruta, 
+	T.id_transportista, T.nombre_transportista, T.estado,
+	Tr.id_transporte, Tr.estado
+FROM InfoLogistica.Ruta R
+INNER JOIN InfoLogistica.Transporte Tr
+ON Tr.id_transporte = R.id_transporte
+INNER JOIN InfoPersona.Transportista T
+ON T.id_transportista = R.id_transportista;
+
+
+SELECT tgname, tgenabled, pg_get_triggerdef(oid) AS definicion
+FROM pg_trigger
+WHERE tgrelid = 'InfoLogistica.Ruta'::regclass
+AND NOT tgisinternal;
+
+SELECT
+    tgname AS nombre_disparador,
+    CASE tgenabled
+        WHEN 'O' THEN 'Habilitado'
+        WHEN 'D' THEN 'Deshabilitado'
+        ELSE tgenabled::text
+    END AS estado,
+    pg_get_triggerdef(oid) AS definicion
+FROM pg_trigger
+WHERE tgrelid = 'InfoLogistica.Ruta'::regclass
+AND NOT tgisinternal;
+
+UPDATE InfoLogistica.Ruta
+SET estado_ruta = estado_ruta
+WHERE estado_ruta IN ('Programada', 'En curso');
+
+SELECT
+    r.id_ruta,
+    r.estado_ruta,
+    t.placa,
+    t.estado AS estado_transporte,
+    tr.nombre_transportista,
+    tr.estado AS estado_transportista
+FROM InfoLogistica.Ruta r
+INNER JOIN InfoLogistica.Transporte t
+    ON r.id_transporte = t.id_transporte
+INNER JOIN InfoPersona.Transportista tr
+    ON r.id_transportista = tr.id_transportista
+ORDER BY r.id_ruta;
+
+SELECT
+    tgname AS disparador,
+    tgenabled AS estado
+FROM pg_trigger
+WHERE tgrelid = 'InfoLogistica.Ruta'::regclass
+AND NOT tgisinternal;
+
+SELECT id_ruta, id_transporte, id_transportista, estado_ruta
+FROM InfoLogistica.Ruta
+WHERE id_ruta = 6;
+
+BEGIN; -- Reasignación de transporte/transportista
+
+UPDATE InfoLogistica.Ruta
+SET id_transporte = 3,
+    id_transportista = 4
+WHERE id_ruta = 6;
+
+SELECT id_transporte, placa, estado
+FROM InfoLogistica.Transporte
+WHERE id_transporte IN (3, 7)
+ORDER BY id_transporte;
+
+SELECT id_transportista, nombre_transportista, estado
+FROM InfoPersona.Transportista
+WHERE id_transportista IN (4, 8)
+ORDER BY id_transportista;
+
+ROLLBACK;
+
+SELECT id_ruta, id_transporte, id_transportista, estado_ruta
+FROM InfoLogistica.Ruta
+WHERE id_ruta = 6;
+
+SELECT id_ruta, id_transporte, id_transportista, estado_ruta
+FROM InfoLogistica.Ruta
+WHERE (id_transporte = 7 OR id_transportista = 8)
+AND estado_ruta IN ('Programada', 'En curso')
+ORDER BY id_ruta;
+
+BEGIN; -- Eliminación de ruta, liberando transportista/transporte
+
+DELETE FROM InfoLogistica.Ruta
+WHERE id_ruta = 6
+RETURNING id_ruta, id_transporte, id_transportista;
+
+SELECT id_transporte, placa, estado
+FROM InfoLogistica.Transporte
+WHERE id_transporte = 7;
+
+SELECT id_transportista, nombre_transportista, estado
+FROM InfoPersona.Transportista
+WHERE id_transportista = 8;
+
+ROLLBACK;
+
+SELECT id_transporte, placa, estado
+FROM InfoLogistica.Transporte
+WHERE estado = 'Disponible'
+ORDER BY id_transporte;
+
+SELECT id_transportista, nombre_transportista, estado
+FROM InfoPersona.Transportista
+WHERE estado = 'Disponible'
+ORDER BY id_transportista;
+
+BEGIN; -- Creación de una nueva ruta
+
+INSERT INTO InfoLogistica.Ruta (
+    id_transporte,
+    id_transportista,
+    hora_salida,
+    hora_estimada_llegada,
+    zona_ruta,
+    distancia_estimada,
+    estado_ruta,
+    nombre_ruta,
+    fecha_ruta
+)
+VALUES (
+    4,
+    14,
+    '09:00',
+    '12:00',
+    'San Luis Potosí',
+    35.50,
+    'Programada',
+    'Prueba de inserción',
+    '2026-11-25'
+)
+RETURNING id_ruta, id_transporte, id_transportista, estado_ruta;
+
+SELECT
+    r.id_ruta,
+    r.nombre_ruta,
+    r.estado_ruta,
+    t.placa,
+    t.estado AS estado_transporte,
+    tr.nombre_transportista,
+    tr.estado AS estado_transportista
+FROM InfoLogistica.Ruta r
+INNER JOIN InfoLogistica.Transporte t
+    ON r.id_transporte = t.id_transporte
+INNER JOIN InfoPersona.Transportista tr
+    ON r.id_transportista = tr.id_transportista
+WHERE r.nombre_ruta = 'Prueba de inserción';
+
+ROLLBACK;
+
+SELECT id_ruta, nombre_ruta
+FROM InfoLogistica.Ruta
+WHERE nombre_ruta = 'Prueba de inserción';
+
+BEGIN; -- Establecer el estado de la ruta como 'Completada'
+
+UPDATE InfoLogistica.Ruta
+SET estado_ruta = 'Completada'
+WHERE id_ruta = 6;
+
+SELECT
+    r.id_ruta,
+    r.estado_ruta,
+    t.placa,
+    t.estado AS estado_transporte,
+    tr.nombre_transportista,
+    tr.estado AS estado_transportista
+FROM InfoLogistica.Ruta r
+INNER JOIN InfoLogistica.Transporte t
+    ON r.id_transporte = t.id_transporte
+INNER JOIN InfoPersona.Transportista tr
+    ON r.id_transportista = tr.id_transportista
+WHERE r.id_ruta = 6;
+
+ROLLBACK;
+
+SELECT id_ruta, id_transporte, id_transportista, estado_ruta
+FROM InfoLogistica.Ruta
+WHERE id_ruta = 6;
+
+BEGIN; -- Establecer el estado de la ruta como 'Cancelada'
+
+UPDATE InfoLogistica.Ruta
+SET estado_ruta = 'Cancelada'
+WHERE id_ruta = 6;
+
+SELECT
+    r.id_ruta,
+    r.estado_ruta,
+    t.placa,
+    t.estado AS estado_transporte,
+    tr.nombre_transportista,
+    tr.estado AS estado_transportista
+FROM InfoLogistica.Ruta r
+INNER JOIN InfoLogistica.Transporte t
+    ON r.id_transporte = t.id_transporte
+INNER JOIN InfoPersona.Transportista tr
+    ON r.id_transportista = tr.id_transportista
+WHERE r.id_ruta = 6;
+
+ROLLBACK;
+
+SELECT
+    r.id_ruta,
+    r.nombre_ruta,
+    r.estado_ruta,
+    t.placa,
+    t.estado AS estado_transporte,
+    tr.nombre_transportista,
+    tr.estado AS estado_transportista
+FROM InfoLogistica.Ruta r
+INNER JOIN InfoLogistica.Transporte t
+    ON r.id_transporte = t.id_transporte
+INNER JOIN InfoPersona.Transportista tr
+    ON r.id_transportista = tr.id_transportista
+ORDER BY r.id_ruta;
