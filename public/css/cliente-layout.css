@@ -57,3 +57,11 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Nota de ayuda bajo un campo (ej. correo de proveedor) */
+.nota-campo {
+    display: block;
+    margin-top: .25rem;
+    font-size: .8rem;
+    color: #6b7280;
+}
