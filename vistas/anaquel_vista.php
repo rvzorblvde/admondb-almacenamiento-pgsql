@@ -177,6 +177,8 @@
         th
         {
             background-color: #eeeeee;
+            font-weight: bold;
+            white-space: nowrap;
         }
 
 
